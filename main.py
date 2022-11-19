@@ -115,7 +115,7 @@ while True:
         engine.SCREEN_DIST += 1
     if pygame.K_LEFT in engine.keyboard and engine.keyboard[pygame.K_LEFT] == True:
         engine.SCREEN_DIST -= 1
-        
+    
     #print(engine.cameraX, engine.cameraY)
     #print(engine.keyboard)
 
