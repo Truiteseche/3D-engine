@@ -2,9 +2,11 @@ import sys, math, random
 try:
     import pygame
 except ModuleNotFoundError:
+    # if pygame is not installed, it installs it
     import subprocess
     subprocess.check_call([sys.executable, "-m", "pip", "install", "pygame"])
     import pygame
+
 
 class Engine:
 
@@ -21,14 +23,15 @@ class Engine:
         self.keyboard = {}
         self.objects = []
 
-    def create3dObject(self, pos, pointsCoordinates, color=(255, 0, 0)):
+    def create3dObject(self, pos, pointsCoordinates, faces=[], color=(255, 0, 0)):
         """
         pos: position of the object in the 3D scene
         points: list of tuples which are point's 3D coordinates relative to object's ones
+        faces: !order sensitive! list of indexes of points that belong to the face
         ex: [(0, 0, 0), (0, 0, 10), (0, 10, 0), (10, 0, 0)]
         Returns a reference to the created object
         """
-        self.objects.append(Object(pos, pointsCoordinates, self, color))
+        self.objects.append(Object(pos, pointsCoordinates, faces, self, color))
         return self.objects[len(self.objects)-1]
 
     def open3dObject(self, sourceFile: str, pos=(0, 0, 0)):
@@ -42,12 +45,20 @@ class Engine:
             with open(sourceFile, "r") as f:
                 if sourceFile[-3:] == "obj":
                     coords = []
+                    faces = []
                     for line in f:
                         if line[0:2] == "v ":
                             coords.append(tuple((-float(line.strip("v ").split()[0]), -float(line.strip("v ").split()[1]), -float(line.strip("v ").split()[2]))))
+                        elif line[0:2] == "f ":
+                            face = line.strip("f ").strip("\n")
+                            face = face.split(" ")
+                            for item in range(len(face)):
+                                face[item] = int(face[item][0])-1
+                            faces.append(face)
                 elif sourceFile[-3:] == "dae":
                     geometryName = "Mesh"
                     coords = []
+                    faces = []
                     for line in f:
                         if '<geometry' in line:
                             geometryName = line[line.index('name="')+6:-3]
@@ -65,12 +76,12 @@ class Engine:
             print(f"Error: File not found: No such file or directory: '{sourceFile}'")
             return []
 
-        return self.create3dObject(pos, coords)
+        return self.create3dObject(pos, coords, faces)
 
 
 class Object:
 
-    def __init__(self, pos, pointsCoordinates, engine, color):
+    def __init__(self, pos, pointsCoordinates, faces, engine, color):
         self.engine = engine
         self.x = pos[0]
         self.y = pos[1]
@@ -81,6 +92,7 @@ class Object:
         self.color = color
         self.scale = (1, 1, 1)
         self.direction = (0, 0, 0)
+        self.faces = faces
         self.points = []
         for point in pointsCoordinates:
             self.create3dPoint(point)
@@ -88,20 +100,20 @@ class Object:
     def create3dPoint(self, pos):
         self.points.append(Point(pos, self, self.engine))
     
-    def scale3d(self, scalingFactors=(1, 1, 1)):
+    def setScale(self, scalingFactors=(1, 1, 1)):
         """
         scalingFactors: 3d tuple to rescale the object on the 3 axis
         Scales the object
         """
         self.scale = scalingFactors
         for point in self.points:
-            point.x = point.originX*scalingFactors[0]
-            point.y = point.originY*scalingFactors[1]
-            point.z = point.originZ*scalingFactors[2]
-        self.width *= scalingFactors[0]
-        self.height *= scalingFactors[1]
-        self.depth *= scalingFactors[2]
-    
+            point.x = point.originX*self.scale[0]
+            point.y = point.originY*self.scale[1]
+            point.z = point.originZ*self.scale[2]
+        self.width *= self.scale[0]
+        self.height *= self.scale[1]
+        self.depth *= self.scale[2]
+
     def rotate3d(rotatingAngle=(0, 0, 0)):
         """
         rotatingAngle: tuple of angles (in radian) | 1 angle for each 1 axis to rotate around
@@ -120,12 +132,12 @@ class Object:
                         pygame.draw.line(self.engine.screen, self.color, (pointA.projectedX, pointA.projectedY), (pointB.projectedX, pointB.projectedY))
 
     def drawPolygons(self):
-        for pointA in self.points:
-            for pointB in self.points:
-                if not pointA is pointB:
-                    for pointC in self.points:
-                        if not pointA is pointB and not pointA is pointC and not pointB is pointC:
-                            pygame.draw.polygon(self.engine.screen, self.color, [(pointA.projectedX, pointA.projectedY), (pointB.projectedX, pointB.projectedY), (pointC.projectedX, pointC.projectedY)])
+        for face in self.faces:
+            try:
+                pygame.draw.polygon(self.engine.screen, self.color, [(self.points[i].projectedX, self.points[i].projectedY) for i in face if self.points[i].z-self.engine.cameraZ > -self.engine.SCREEN_DIST//1.5])
+            except:
+                pass
+            # (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
         """
         for iPoint in range(len(self.points)):
             if iPoint+2 < len(self.points):
@@ -138,6 +150,14 @@ class Object:
             elif iPoint-1 >= 0:
                 pygame.draw.polygon(self.engine.screen, self.color, [(self.points[len(self.points)-1].projectedX, self.points[len(self.points)-1].projectedY), (self.points[iPoint-1].projectedX, self.points[iPoint-1].projectedY), (self.points[iPoint].projectedX, self.points[iPoint].projectedY)])
         """
+
+"""
+class Face:
+
+    def __init__(self):
+        self.points
+"""
+
 
 class Point:
 
@@ -158,8 +178,9 @@ class Point:
         Calculates the projectedX and projectedY coordinates
         It converts the 3D coords in the world to the 2d coords on the screen
         """
-        self.projectedX = self.engine.SCREEN_DIST * (self.x + self.parentObject.x - self.engine.cameraX) / (self.engine.SCREEN_DIST + self.z + self.parentObject.z - self.engine.cameraZ) + self.engine.SCREEN_SIZE[0]/2
-        self.projectedY = self.engine.SCREEN_DIST * (self.y + self.parentObject.y - self.engine.cameraY) / (self.engine.SCREEN_DIST + self.z + self.parentObject.z - self.engine.cameraZ) + self.engine.SCREEN_SIZE[1]/2
+        if self.z-self.engine.cameraZ > -self.engine.SCREEN_DIST:
+            self.projectedX = self.engine.SCREEN_DIST * (self.x + self.parentObject.x - self.engine.cameraX) / (self.engine.SCREEN_DIST + self.z + self.parentObject.z - self.engine.cameraZ) + self.engine.SCREEN_SIZE[0]/2
+            self.projectedY = self.engine.SCREEN_DIST * (self.y + self.parentObject.y - self.engine.cameraY) / (self.engine.SCREEN_DIST + self.z + self.parentObject.z - self.engine.cameraZ) + self.engine.SCREEN_SIZE[1]/2
 
     def drawPoint(self):
         self.projectPointOnScreen()
@@ -168,16 +189,16 @@ class Point:
 
 
 pygame.init()
-screen = pygame.display.set_mode((720, 720))
+screen = pygame.display.set_mode((500, 500))
 pygame.display.set_caption('TRUITE ENGINE • 3D GRAPHICS WIREFRAME')
 engine = Engine(screen)
-obj = engine.create3dObject((-50, 0, 0), [(0, 0, 0), (100, 0, 0), (100, 100, 0), (0, 100, 0), (0, 0, 100), (100, 0, 100), (100, 100, 100), (0, 100, 100)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
-engine.create3dObject((0, 300, 50), [(0, 0, 0), (100, 0, 0), (100, 0, 100), (0, 0, 100), (50, -100, 50)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
-obj2 = engine.create3dObject((300, 0, 0), [(25, 0, 0), (75, 0, 0), (100, 0, 25), (100, 0, 75), (75, 0, 100), (25, 0, 100), (0, 0, 75), (0, 0, 25), (25, 300, 0), (75, 300, 0), (100, 300, 25), (100, 300, 75), (75, 300, 100), (25, 300, 100), (0, 300, 75), (0, 300, 25)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
-engine.create3dObject((200, 50, 150), [(0, 0, 0), (100, 0, 0), (100, 100, 0), (0, 100, 0), (0, 0, 100), (100, 0, 100), (100, 100, 100), (0, 100, 100)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
-#engine.open3dObject("3dModels/cone.obj", (300, -200, 0))
-# obj0 = engine.open3dObject("3dModels/cone.dae", (0, -200, 0))
-# obj0.scale3d((10, 10, 10))
+engine.create3dObject((-50, 0, 0), [(0, 0, 0), (100, 0, 0), (100, 100, 0), (0, 100, 0), (0, 0, 100), (100, 0, 100), (100, 100, 100), (0, 100, 100)], [(0, 1, 2, 3), (4, 5, 6, 7), (0, 3, 7, 4)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
+# engine.create3dObject((0, 300, 50), [(0, 0, 0), (100, 0, 0), (100, 0, 100), (0, 0, 100), (50, -100, 50)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
+# engine.create3dObject((300, 0, 0), [(25, 0, 0), (75, 0, 0), (100, 0, 25), (100, 0, 75), (75, 0, 100), (25, 0, 100), (0, 0, 75), (0, 0, 25), (25, 300, 0), (75, 300, 0), (100, 300, 25), (100, 300, 75), (75, 300, 100), (25, 300, 100), (0, 300, 75), (0, 300, 25)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
+# engine.create3dObject((200, 50, 150), [(0, 0, 0), (100, 0, 0), (100, 100, 0), (0, 100, 0), (0, 0, 100), (100, 0, 100), (100, 100, 100), (0, 100, 100)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
+# engine.open3dObject("3dModels/suzanne.obj", (150, 50, 0))
+engine.open3dObject("3dModels/cube.obj", (200, 50, 0))
+
 FRAMES = 0
 while True:
     for event in pygame.event.get():
@@ -200,9 +221,9 @@ while True:
         engine.cameraZ += 1
     if pygame.K_s in engine.keyboard and engine.keyboard[pygame.K_s] == True:
         engine.cameraZ -= 1
-    if pygame.K_DOWN in engine.keyboard and engine.keyboard[pygame.K_DOWN] == True:
+    if pygame.K_LSHIFT in engine.keyboard and engine.keyboard[pygame.K_LSHIFT] == True:
         engine.cameraY += 1
-    if pygame.K_UP in engine.keyboard and engine.keyboard[pygame.K_UP] == True:
+    if pygame.K_SPACE in engine.keyboard and engine.keyboard[pygame.K_SPACE] == True:
         engine.cameraY -= 1
     if pygame.K_RIGHT in engine.keyboard and engine.keyboard[pygame.K_RIGHT] == True:
         engine.SCREEN_DIST += 3
@@ -213,17 +234,18 @@ while True:
     
     #print(engine.cameraX, engine.cameraY)
     #print(engine.keyboard)
-    obj.scale3d((abs(math.sin(FRAMES*0.001)), abs(math.sin(FRAMES*0.001)), abs(math.sin(FRAMES*0.001))))
-    obj2.scale3d((1, 0.2 + abs(math.sin(FRAMES*0.001))*0.8, 1))
-    obj2.x = 300 + math.sin(FRAMES*0.001)*100
+    # obj.setScale((abs(math.sin(FRAMES*0.001)), abs(math.sin(FRAMES*0.001)), abs(math.sin(FRAMES*0.001))))
+    # obj2.setScale((1, 0.2 + abs(math.sin(FRAMES*0.001))*0.8, 1))
+    # obj3.x = 200 + math.sin(FRAMES*0.001)*100
+    # obj3.y = 50 + math.cos(FRAMES*0.001)*100
     # display on screen
     screen.fill((0, 0, 0)) # dark mode
-    if pygame.K_SPACE in engine.keyboard and engine.keyboard[pygame.K_SPACE] == True:
+    if pygame.K_l in engine.keyboard and engine.keyboard[pygame.K_l] == True:
         screen.fill((255, 255, 255)) # light mode
     pygame.draw.circle(engine.screen, (255, 0, 255), (engine.SCREEN_SIZE[0]/2, engine.SCREEN_SIZE[1]/2), 2)
     for object in engine.objects:
-        #object.drawPolygons()
-        object.drawWireframe()
+        object.drawPolygons()
+        # object.drawWireframe()
         for point in object.points:
             point.drawPoint()
     pygame.display.flip()
