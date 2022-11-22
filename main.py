@@ -1,6 +1,10 @@
-import pygame, sys
-import math
-import random
+import sys, math, random
+try:
+    import pygame
+except ModuleNotFoundError:
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "pygame"])
+    import pygame
 
 class Engine:
 
@@ -56,6 +60,7 @@ class Engine:
                 else:
                     print("Error: File format not supported")
                     return []
+                f.close()
         except FileNotFoundError:
             print(f"Error: File not found: No such file or directory: '{sourceFile}'")
             return []
@@ -111,8 +116,28 @@ class Object:
         for pointA in self.points:
             for pointB in self.points:
                 if not pointB is pointA:
-                    pygame.draw.line(self.engine.screen, self.color, (pointA.projectedX, pointA.projectedY), (pointB.projectedX, pointB.projectedY))
+                    if pointA.z-self.engine.cameraZ > -self.engine.SCREEN_DIST and pointB.z-self.engine.cameraZ > -self.engine.SCREEN_DIST:
+                        pygame.draw.line(self.engine.screen, self.color, (pointA.projectedX, pointA.projectedY), (pointB.projectedX, pointB.projectedY))
 
+    def drawPolygons(self):
+        for pointA in self.points:
+            for pointB in self.points:
+                if not pointA is pointB:
+                    for pointC in self.points:
+                        if not pointA is pointB and not pointA is pointC and not pointB is pointC:
+                            pygame.draw.polygon(self.engine.screen, self.color, [(pointA.projectedX, pointA.projectedY), (pointB.projectedX, pointB.projectedY), (pointC.projectedX, pointC.projectedY)])
+        """
+        for iPoint in range(len(self.points)):
+            if iPoint+2 < len(self.points):
+                pygame.draw.polygon(self.engine.screen, self.color, [(self.points[iPoint].projectedX, self.points[iPoint].projectedY), (self.points[iPoint+1].projectedX, self.points[iPoint+1].projectedY), (self.points[iPoint+2].projectedX, self.points[iPoint+2].projectedY)])
+            elif iPoint+1 < len(self.points):
+                pygame.draw.polygon(self.engine.screen, self.color, [(self.points[iPoint].projectedX, self.points[iPoint].projectedY), (self.points[iPoint+1].projectedX, self.points[iPoint+1].projectedY), (self.points[0].projectedX, self.points[0].projectedY)])
+
+            if iPoint-2 >= 0:
+                pygame.draw.polygon(self.engine.screen, self.color, [(self.points[iPoint-2].projectedX, self.points[iPoint-2].projectedY), (self.points[iPoint-1].projectedX, self.points[iPoint-1].projectedY), (self.points[iPoint].projectedX, self.points[iPoint].projectedY)])
+            elif iPoint-1 >= 0:
+                pygame.draw.polygon(self.engine.screen, self.color, [(self.points[len(self.points)-1].projectedX, self.points[len(self.points)-1].projectedY), (self.points[iPoint-1].projectedX, self.points[iPoint-1].projectedY), (self.points[iPoint].projectedX, self.points[iPoint].projectedY)])
+        """
 
 class Point:
 
@@ -138,7 +163,8 @@ class Point:
 
     def drawPoint(self):
         self.projectPointOnScreen()
-        pygame.draw.circle(self.engine.screen, (255 - self.parentObject.color[0], 255 - self.parentObject.color[1], 255 - self.parentObject.color[2]), (self.projectedX, self.projectedY), 2)
+        if self.z-self.engine.cameraZ > -self.engine.SCREEN_DIST:
+            pygame.draw.circle(self.engine.screen, (255 - self.parentObject.color[0], 255 - self.parentObject.color[1], 255 - self.parentObject.color[2]), (self.projectedX, self.projectedY), 2)
 
 
 pygame.init()
@@ -147,11 +173,11 @@ pygame.display.set_caption('TRUITE ENGINE • 3D GRAPHICS WIREFRAME')
 engine = Engine(screen)
 obj = engine.create3dObject((-50, 0, 0), [(0, 0, 0), (100, 0, 0), (100, 100, 0), (0, 100, 0), (0, 0, 100), (100, 0, 100), (100, 100, 100), (0, 100, 100)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
 engine.create3dObject((0, 300, 50), [(0, 0, 0), (100, 0, 0), (100, 0, 100), (0, 0, 100), (50, -100, 50)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
-engine.create3dObject((300, 0, 0), [(25, 0, 0), (75, 0, 0), (100, 0, 25), (100, 0, 75), (75, 0, 100), (25, 0, 100), (0, 0, 75), (0, 0, 25), (25, 300, 0), (75, 300, 0), (100, 300, 25), (100, 300, 75), (75, 300, 100), (25, 300, 100), (0, 300, 75), (0, 300, 25)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
+obj2 = engine.create3dObject((300, 0, 0), [(25, 0, 0), (75, 0, 0), (100, 0, 25), (100, 0, 75), (75, 0, 100), (25, 0, 100), (0, 0, 75), (0, 0, 25), (25, 300, 0), (75, 300, 0), (100, 300, 25), (100, 300, 75), (75, 300, 100), (25, 300, 100), (0, 300, 75), (0, 300, 25)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
 engine.create3dObject((200, 50, 150), [(0, 0, 0), (100, 0, 0), (100, 100, 0), (0, 100, 0), (0, 0, 100), (100, 0, 100), (100, 100, 100), (0, 100, 100)], (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
-engine.open3dObject("3dModels/cone.obj", (300, -200, 0))
-# obj2 = engine.open3dObject("3dModels/cone.dae", (0, -200, 0))
-# obj2.scale3d((10, 10, 10))
+#engine.open3dObject("3dModels/cone.obj", (300, -200, 0))
+# obj0 = engine.open3dObject("3dModels/cone.dae", (0, -200, 0))
+# obj0.scale3d((10, 10, 10))
 FRAMES = 0
 while True:
     for event in pygame.event.get():
@@ -182,17 +208,22 @@ while True:
         engine.SCREEN_DIST += 3
     if pygame.K_LEFT in engine.keyboard and engine.keyboard[pygame.K_LEFT] == True:
         engine.SCREEN_DIST -= 3
+        if engine.SCREEN_DIST <= 0:
+            engine.SCREEN_DIST = 1
     
     #print(engine.cameraX, engine.cameraY)
     #print(engine.keyboard)
     obj.scale3d((abs(math.sin(FRAMES*0.001)), abs(math.sin(FRAMES*0.001)), abs(math.sin(FRAMES*0.001))))
+    obj2.scale3d((1, 0.2 + abs(math.sin(FRAMES*0.001))*0.8, 1))
+    obj2.x = 300 + math.sin(FRAMES*0.001)*100
     # display on screen
     screen.fill((0, 0, 0)) # dark mode
     if pygame.K_SPACE in engine.keyboard and engine.keyboard[pygame.K_SPACE] == True:
         screen.fill((255, 255, 255)) # light mode
     pygame.draw.circle(engine.screen, (255, 0, 255), (engine.SCREEN_SIZE[0]/2, engine.SCREEN_SIZE[1]/2), 2)
     for object in engine.objects:
-        # object.drawWireframe()
+        #object.drawPolygons()
+        object.drawWireframe()
         for point in object.points:
             point.drawPoint()
     pygame.display.flip()
