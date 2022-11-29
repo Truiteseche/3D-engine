@@ -126,42 +126,32 @@ class Object:
         self.height *= self.scale[1]
         self.depth *= self.scale[2]
 
-    def setRotate(self, rotationAngle=(0, 0, 0)):
+    def setDirection(self, directionAngle=(0, 0, 0)):
         """
         rotatingAngle: tuple of angles (in radian) | 1 angle for each 1 axis to rotate around
         Rotates each point of the object
         """
-        self.direction = rotationAngle
         for point in self.points:
             # X axis
-            angle = math.atan2(point.y, point.z) + math.radians(self.direction[0])
+            angle = math.atan2(point.y, point.z) + math.radians(directionAngle[0] - self.direction[0])
             dist = math.sqrt(point.y**2 + point.z**2)
             point.y = math.sin(angle) * dist
             point.z = math.cos(angle) * dist
             # Y axis
-            angle = math.atan2(point.x, point.z) + math.radians(self.direction[1])
+            angle = math.atan2(point.x, point.z) + math.radians(directionAngle[1] - self.direction[1])
             dist = math.sqrt(point.x**2 + point.z**2)
             point.x = math.sin(angle) * dist
             point.z = math.cos(angle) * dist
             # Z axis
-            angle = math.atan2(point.y, point.x) + math.radians(self.direction[2])
+            angle = math.atan2(point.y, point.x) + math.radians(directionAngle[2] - self.direction[2])
             dist = math.sqrt(point.x**2 + point.y**2)
             point.x = math.cos(angle) * dist
             point.y = math.sin(angle) * dist
-
-            #deltaX = point.x - self.x
-            #deltaY = point.y - self.y
-            # deltaZ = point.z# - self.z
-            #distXY = math.sqrt(deltaX**2 + deltaY**2)
-            # distXZ = math.sqrt(deltaX**2 + deltaZ**2)
-            # distYZ = math.sqrt(deltaY**2 + deltaZ**2)
-            #rotatedX = math.cos(math.radians(self.direction[2]))*distXY
-            #rotatedY = math.sin(math.radians(self.direction[2]))*distXY
-            # rotatedZ = math.sin(math.radians(self.direction[1]))*distXZ + math.cos(math.radians(self.direction[0]))
-            #point.x = self.x + rotatedX
-            #point.y = self.y + rotatedY
-            # point.z = self.z + rotated Z
         
+        self.direction = directionAngle
+
+    
+
     def drawWireframe(self):
         for point in self.points:
             point.projectPointOnScreen()
@@ -198,9 +188,6 @@ class Point:
         self.x = self.originX
         self.y = self.originY
         self.z = self.originZ
-        # print("x : ", self.x)
-        # print("y : ", self.y)
-        # print("z : ", self.z)
         self.projectedX = 0
         self.projectedY = 0
 
@@ -210,8 +197,9 @@ class Point:
         It converts the 3D coords in the world to the 2d coords on the screen
         """
         if self.z-self.engine.cameraZ > -self.engine.SCREEN_DIST:
-            self.projectedX = self.engine.SCREEN_DIST * (self.x + self.parentObject.x - self.engine.cameraX) / (self.engine.SCREEN_DIST + self.z + self.parentObject.z - self.engine.cameraZ) + self.engine.SCREEN_SIZE[0]/2
-            self.projectedY = self.engine.SCREEN_DIST * (self.y + self.parentObject.y - self.engine.cameraY) / (self.engine.SCREEN_DIST + self.z + self.parentObject.z - self.engine.cameraZ) + self.engine.SCREEN_SIZE[1]/2
+            z = (self.engine.SCREEN_DIST + self.z + self.parentObject.z - self.engine.cameraZ)
+            self.projectedX = self.engine.SCREEN_DIST * (self.x + self.parentObject.x - self.engine.cameraX) / z + self.engine.SCREEN_SIZE[0]/2
+            self.projectedY = self.engine.SCREEN_DIST * (self.y + self.parentObject.y - self.engine.cameraY) / z + self.engine.SCREEN_SIZE[1]/2
 
     def drawPoint(self):
         self.projectPointOnScreen()
@@ -284,7 +272,7 @@ while True:
     for object in engine.objects:
         # object.drawPolygons()
         object.drawWireframe()
-        object.setRotate((300*engine.dt, 300*engine.dt, 300*engine.dt))
+        object.setDirection((0, 0, FRAMES*2))
         # for point in object.points:
         #     point.drawPoint()
     screen.blit(FPSfont.render(f"{engine.clock.get_fps():.2f}", True, (255, 255, 255)), (10, 10))
